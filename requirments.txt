@@ -1,0 +1,6 @@
+streamlit
+alpaca-py
+altair
+pandas
+feedparser
+textblob
