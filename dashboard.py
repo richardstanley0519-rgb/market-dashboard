@@ -3,6 +3,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime, timedelta
+import pandas as pd # Needed for timezone conversion
 
 # --- AUTO-INSTALLER ---
 def install_and_import(package):
@@ -23,7 +24,6 @@ except ImportError:
     from textblob import TextBlob
 
 try:
-    # FIX: Assign to '_' so Streamlit doesn't print it to the screen
     _ = TextBlob("test").sentiment 
 except:
     st.warning("⚙️ Downloading sentiment vocabulary...")
@@ -61,6 +61,10 @@ def get_market_data():
     )
     bars = client.get_stock_bars(request_params)
     df = bars.df.reset_index()
+    
+    # --- TIMEZONE FIX ---
+    # Convert UTC (Server Time) to America/New_York (Market Time)
+    df['timestamp'] = df['timestamp'].dt.tz_convert('America/New_York')
     
     # Indicators
     df['sma_20'] = df['close'].rolling(window=20).mean()
@@ -107,6 +111,9 @@ while True:
         current_rsi = df.iloc[-1]['rsi']
         current_sma = df.iloc[-1]['sma_20']
         
+        # Get latest time in readable format
+        latest_time = df.iloc[-1]['timestamp'].strftime('%H:%M %p')
+        
         news_score, news_list = get_news_sentiment()
         
         # 2. Trends
@@ -120,7 +127,7 @@ while True:
         with data_container.container():
             # Status Banner
             if datetime.now().weekday() > 4: 
-                st.info("🔔 Market is Closed (Weekend). Showing last available data from Friday.")
+                st.info(f"🔔 Market is Closed (Weekend). Showing data from Friday at {latest_time} ET.")
 
             # Metrics
             c1, c2, c3, c4 = st.columns(4)
@@ -136,7 +143,7 @@ while True:
                 st.write("### 🕯️ Price Action")
                 
                 base = alt.Chart(df).encode(
-                    x=alt.X('timestamp:T', axis=alt.Axis(title=None, format='%H:%M')),
+                    x=alt.X('timestamp:T', axis=alt.Axis(title='New York Time', format='%I:%M %p')), # 12-hour format
                     tooltip=['timestamp', 'open', 'high', 'low', 'close', 'sma_20']
                 )
 
@@ -176,4 +183,5 @@ while True:
 
     except Exception as e:
         st.error(f"Waiting for market data... ({e})")
-        time.sleep(10)
+        time.sleep(10)    
+      
